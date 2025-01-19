@@ -7,7 +7,7 @@ import { BN } from "bn.js";
 import adminArr from './keys/admin.json'
 import feeWalletArr from './keys/feeWallet.json'
 import key1 from './keys/user1.json';
-import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction, createAssociatedTokenAccount, createMint, getAssociatedTokenAddress, getOrCreateAssociatedTokenAccount, mintTo, NATIVE_MINT, getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction, createAssociatedTokenAccount, createMint, getAssociatedTokenAddress, getOrCreateAssociatedTokenAccount, mintTo, NATIVE_MINT, getAssociatedTokenAddressSync, createAssociatedTokenAccountIdempotent, createAssociatedTokenAccountIdempotentInstruction } from "@solana/spl-token";
 
 const GLOBAL_SEED = "global-seed"
 const DECIMALS = 9;
@@ -18,7 +18,7 @@ describe("drvx", () => {
   const provider = anchor.AnchorProvider.env()
   anchor.setProvider(provider);
 
-  const connection = new Connection("http://localhost:8899", { commitment: 'confirmed' });
+  const connection = new Connection("https://devnet.helius-rpc.com/?api-key=36fe5fc9-8598-4302-a28f-a93d9cc441b7", { commitment: 'confirmed' });
   const admin = Keypair.fromSecretKey(new Uint8Array(adminArr))
   const feeWallet = Keypair.fromSecretKey(new Uint8Array(feeWalletArr))
   const user1 = Keypair.fromSecretKey(bs58.decode(key1.key));
@@ -40,51 +40,51 @@ describe("drvx", () => {
 
   console.log("Admin's wallet address is : ", admin.publicKey.toBase58(), '\n');
 
-  // it(" Admin wallet's state", async () => { 
-  //   console.log("Admin's wallet balance : ", (await connection.getBalance(adminWallet)) / 10 ** 9, "SOL"), '\n' }
-  // );
+  it(" Admin wallet's state", async () => { 
+    console.log("Admin's wallet balance : ", ((await connection.getBalance(adminWallet)) / 10 ** 9).toFixed(3), "SOL"), '\n' }
+  );
 
 
-  it("Airdrop to admin wallet", async () => {
-    console.log("\n\n")
-    console.log("==============================  Trying to Airdrop to admin wallet  ==============================", '\n')
-    console.log(`Requesting airdrop to admin for 1SOL : ${admin.publicKey}`, '\n')
-    // 1 - Request Airdrop
-    const signature = await connection.requestAirdrop(
-      admin.publicKey,
-      10 ** 9
-    );
-    // 2 - Fetch the latest blockhash
-    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
-    // 3 - Confirm transaction success
+  // it("Airdrop to admin wallet", async () => {
+  //   console.log("\n\n")
+  //   console.log("==============================  Trying to Airdrop to admin wallet  ==============================", '\n')
+  //   console.log(`Requesting airdrop to admin for 1SOL : ${admin.publicKey}`, '\n')
+  //   // 1 - Request Airdrop
+  //   const signature = await connection.requestAirdrop(
+  //     admin.publicKey,
+  //     10 ** 9
+  //   );
+  //   // 2 - Fetch the latest blockhash
+  //   const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+  //   // 3 - Confirm transaction success
 
-    await connection.confirmTransaction({
-      blockhash,
-      lastValidBlockHeight,
-      signature
-    }, 'confirmed');
-    console.log("Admin's wallet balance : ", (await connection.getBalance(admin.publicKey)) / 10 ** 9, "SOL", '\n')
-  })
+  //   await connection.confirmTransaction({
+  //     blockhash,
+  //     lastValidBlockHeight,
+  //     signature
+  //   }, 'confirmed');
+  //   console.log("Admin's wallet balance : ", (await connection.getBalance(admin.publicKey)) / 10 ** 9, "SOL", '\n')
+  // })
 
-  it("Airdrop to user1 wallet", async () => {
-    console.log("\n\n")
-    console.log("==============================  Trying to Airdrop to user1 wallet  ==============================", '\n')
-    console.log(`Requesting airdrop to user1 for 1SOL : ${admin.publicKey}`, '\n')
-    // 1 - Request Airdrop
-    const signature = await connection.requestAirdrop(
-      user1.publicKey,
-      10 ** 9
-    );
-    // 2 - Fetch the latest blockhash
-    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
-    // 3 - Confirm transaction success
-    await connection.confirmTransaction({
-      blockhash,
-      lastValidBlockHeight,
-      signature
-    }, 'confirmed');
-    console.log("user1 wallet balance : ", (await connection.getBalance(user1.publicKey)) / 10 ** 9, "SOL", '\n')
-  })
+  // it("Airdrop to user1 wallet", async () => {
+  //   console.log("\n\n")
+  //   console.log("==============================  Trying to Airdrop to user1 wallet  ==============================", '\n')
+  //   console.log(`Requesting airdrop to user1 for 1SOL : ${admin.publicKey}`, '\n')
+  //   // 1 - Request Airdrop
+  //   const signature = await connection.requestAirdrop(
+  //     user1.publicKey,
+  //     10 ** 9
+  //   );
+  //   // 2 - Fetch the latest blockhash
+  //   const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+  //   // 3 - Confirm transaction success
+  //   await connection.confirmTransaction({
+  //     blockhash,
+  //     lastValidBlockHeight,
+  //     signature
+  //   }, 'confirmed');
+  //   console.log("user1 wallet balance : ", (await connection.getBalance(user1.publicKey)) / 10 ** 9, "SOL", '\n')
+  // })
 
   it("Mint usdt token to admin wallet", async () => {
     console.log("\n\n")
@@ -392,4 +392,217 @@ describe("drvx", () => {
       console.log("error in withdraw drvx Token :", error)
     }
   })
+
+
+  it("User swap 10_000 Usdt token to Drvx tokens", async () => {
+    console.log("\n\n")
+    console.log("==============================  User swap 10000 Usdt token to Drvx tokens  ==============================  ")
+    try {
+
+      const swapUsdtToDrvxAmount = new BN(10000).mul(new BN(10 ** tokenDecimal)); // withdraw  tokens
+      console.log("globalState:", globalState.toBase58(), '\n')
+      console.log("Swap Amount:", swapUsdtToDrvxAmount, '\n')
+
+      const scUsdtAta = await getAssociatedTokenAddress(usdtMint, globalState, true)
+      console.log("Smart Contract UsdtAta:", scUsdtAta.toBase58(), '\n')
+      const scUsdtAtaBalInfo = await connection.getTokenAccountBalance(scUsdtAta)
+      console.log("Smart Contract UsdtAta token balance is :", scUsdtAtaBalInfo.value.uiAmount, '\n')
+
+      const scDrvxAta = await getAssociatedTokenAddress(drvxMint, globalState, true)
+      console.log("Smart Contract DrvxAta:", scDrvxAta.toBase58(), '\n')
+      const scDrvxAtaBalInfo = await connection.getTokenAccountBalance(scDrvxAta)
+      console.log("Smart Contract DrvxAta token balance is :", scDrvxAtaBalInfo.value.uiAmount, '\n')
+
+      const userDrvxAta = await getAssociatedTokenAddress(drvxMint, globalState, true)
+      console.log("Smart Contract DrvxAta:", userDrvxAta.toBase58(), '\n')
+      const userDrvxAtaBalInfo = await connection.getTokenAccountBalance(userDrvxAta)
+      console.log("Smart Contract DrvxAta token balance is :", userDrvxAtaBalInfo.value.uiAmount, '\n')
+
+
+      const userUsdtAta = await getAssociatedTokenAddress(usdtMint, globalState, true)
+      console.log("Smart Contract DrvxAta:", userUsdtAta.toBase58(), '\n')
+      const userUsdtAtaBalInfo = await connection.getTokenAccountBalance(userUsdtAta)
+      console.log("Smart Contract DrvxAta token balance is :", scDrvxAtaBalInfo.value.uiAmount, '\n')
+
+
+      const feeWalletAta = getAssociatedTokenAddressSync(usdtMint, feeWallet.publicKey)
+      console.log("FeeWalletAta address:", feeWalletAta.toBase58())
+      const feeAtaInfo = await connection.getAccountInfo(feeWalletAta)
+      if (feeAtaInfo) {
+        const feeBalance = await connection.getTokenAccountBalance(feeWalletAta)
+        console.log("Fee Balance:", feeBalance.value.uiAmount)
+      } else {
+        console.log("Fee wallet ata still not created")
+      }
+
+      const transaction = new Transaction().add(
+        createAssociatedTokenAccountIdempotentInstruction(
+          admin.publicKey, feeWalletAta, feeWallet.publicKey, usdtMint
+        ),
+        await program.methods
+          .swapUsdtToDrvx(new BN(1_000_000))
+          .accounts({
+            admin: admin.publicKey,
+            drvxMint,
+            usdtMint,
+            feeWallet: feeWallet.publicKey,
+            user: admin.publicKey
+          })
+          .instruction()
+      )
+      transaction.feePayer = admin.publicKey
+      transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
+      console.log(await connection.simulateTransaction(transaction))
+      const sig = await sendAndConfirmTransaction(connection, transaction, [admin])
+      console.log({ sig })
+
+
+
+
+
+      const scUsdtAtaAfterSwap = await getAssociatedTokenAddress(usdtMint, globalState, true)
+      console.log("Smart Contract UsdtAta:", scUsdtAtaAfterSwap.toBase58(), '\n')
+      const scUsdtAtaBalInfoAfterSwap = await connection.getTokenAccountBalance(scUsdtAta)
+      console.log("Smart Contract UsdtAta token balance is :", scUsdtAtaBalInfoAfterSwap.value.uiAmount, '\n')
+
+      const scDrvxAtaAfterSwap = await getAssociatedTokenAddress(drvxMint, globalState, true)
+      console.log("Smart Contract DrvxAta:", scDrvxAtaAfterSwap.toBase58(), '\n')
+      const scDrvxAtaBalInfoAfterSwap = await connection.getTokenAccountBalance(scDrvxAta)
+      console.log("Smart Contract DrvxAta token balance is :", scDrvxAtaBalInfoAfterSwap.value.uiAmount, '\n')
+
+      const userDrvxAtaAfterSwap = await getAssociatedTokenAddress(drvxMint, globalState, true)
+      console.log("Smart Contract DrvxAta:", userDrvxAtaAfterSwap.toBase58(), '\n')
+      const userDrvxAtaBalInfoAfterSwap = await connection.getTokenAccountBalance(userDrvxAta)
+      console.log("Smart Contract DrvxAta token balance is :", userDrvxAtaBalInfoAfterSwap.value.uiAmount, '\n')
+
+
+      const userUsdtAtaAfterSwap = await getAssociatedTokenAddress(usdtMint, globalState, true)
+      console.log("Smart Contract DrvxAta:", userUsdtAtaAfterSwap.toBase58(), '\n')
+      const userUsdtAtaBalInfoAfterSwap = await connection.getTokenAccountBalance(userUsdtAta)
+      console.log("Smart Contract DrvxAta token balance is :", userUsdtAtaBalInfoAfterSwap.value.uiAmount, '\n')
+
+
+      const feeWalletAtaAfterSwap = getAssociatedTokenAddressSync(usdtMint, feeWallet.publicKey)
+      console.log("FeeWalletAta address:", feeWalletAtaAfterSwap.toBase58())
+      const feeAtaInfoAfterSwap = await connection.getAccountInfo(feeWalletAta)
+      if (feeAtaInfoAfterSwap) {
+        const feeBalance = await connection.getTokenAccountBalance(feeWalletAta)
+        console.log("Fee Balance:", feeBalance.value.uiAmount)
+      } else {
+        console.log("Fee wallet ata still not created")
+      }
+    } catch (error) {
+      console.log("error in withdraw drvx Token :", error)
+    }
+  })
+
+  it("User swap 70_000 Usdt token to Drvx tokens", async () => {
+    console.log("\n\n")
+    console.log("==============================  User swap 70000 Usdt token to Drvx tokens  ==============================  ", '\n')
+    try {
+
+      const swapUsdtToDrvxAmount = new BN(70000).mul(new BN(10 ** tokenDecimal)); // withdraw  tokens
+      console.log("globalState:", globalState.toBase58(), '\n')
+      console.log("Swap Amount:", swapUsdtToDrvxAmount, '\n')
+
+      const scUsdtAta = await getAssociatedTokenAddress(usdtMint, globalState, true)
+      console.log("Smart Contract UsdtAta:", scUsdtAta.toBase58(), '\n')
+      const scUsdtAtaBalInfo = await connection.getTokenAccountBalance(scUsdtAta)
+      console.log("Smart Contract UsdtAta token balance is :", scUsdtAtaBalInfo.value.uiAmount, '\n')
+
+      const scDrvxAta = await getAssociatedTokenAddress(drvxMint, globalState, true)
+      console.log("Smart Contract DrvxAta:", scDrvxAta.toBase58(), '\n')
+      const scDrvxAtaBalInfo = await connection.getTokenAccountBalance(scDrvxAta)
+      console.log("Smart Contract DrvxAta token balance is :", scDrvxAtaBalInfo.value.uiAmount, '\n')
+
+      const userDrvxAta = await getAssociatedTokenAddress(drvxMint, globalState, true)
+      console.log("Smart Contract DrvxAta:", userDrvxAta.toBase58(), '\n')
+      const userDrvxAtaBalInfo = await connection.getTokenAccountBalance(userDrvxAta)
+      console.log("Smart Contract DrvxAta token balance is :", userDrvxAtaBalInfo.value.uiAmount, '\n')
+
+
+      const userUsdtAta = await getAssociatedTokenAddress(usdtMint, globalState, true)
+      console.log("Smart Contract DrvxAta:", userUsdtAta.toBase58(), '\n')
+      const userUsdtAtaBalInfo = await connection.getTokenAccountBalance(userUsdtAta)
+      console.log("Smart Contract DrvxAta token balance is :", scDrvxAtaBalInfo.value.uiAmount, '\n')
+
+
+      const feeWalletAta = getAssociatedTokenAddressSync(usdtMint, feeWallet.publicKey)
+      console.log("FeeWalletAta address:", feeWalletAta.toBase58())
+      const feeAtaInfo = await connection.getAccountInfo(feeWalletAta)
+      if (feeAtaInfo) {
+        const feeBalance = await connection.getTokenAccountBalance(feeWalletAta)
+        console.log("Fee Balance:", feeBalance.value.uiAmount)
+      } else {
+        console.log("Fee wallet ata still not created")
+      }
+
+      const transaction = new Transaction().add(
+        createAssociatedTokenAccountIdempotentInstruction(
+          admin.publicKey, feeWalletAta, feeWallet.publicKey, usdtMint
+        ),
+        await program.methods
+          .swapDrvxToUsdt(new BN(70_000))
+          .accounts({
+
+            // admin: admin.publicKey,
+            // feeWallet: feeWallet.publicKey,
+            // drvxMint,
+            // usdtMint,
+            // user: admin.publicKey
+
+            admin: admin.publicKey,
+            drvxMint: drvxMint,
+            feeWallet: feeWallet.publicKey,
+            usdtMint: usdtMint,
+            user: admin.publicKey
+          })
+          .instruction()
+      )
+      transaction.feePayer = admin.publicKey
+      transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
+      console.log(await connection.simulateTransaction(transaction))
+      const sig = await sendAndConfirmTransaction(connection, transaction, [admin])
+      console.log({ sig })
+
+
+
+
+
+      const scUsdtAtaAfterSwap = await getAssociatedTokenAddress(usdtMint, globalState, true)
+      console.log("Smart Contract UsdtAta:", scUsdtAtaAfterSwap.toBase58(), '\n')
+      const scUsdtAtaBalInfoAfterSwap = await connection.getTokenAccountBalance(scUsdtAta)
+      console.log("Smart Contract UsdtAta token balance is :", scUsdtAtaBalInfoAfterSwap.value.uiAmount, '\n')
+
+      const scDrvxAtaAfterSwap = await getAssociatedTokenAddress(drvxMint, globalState, true)
+      console.log("Smart Contract DrvxAta:", scDrvxAtaAfterSwap.toBase58(), '\n')
+      const scDrvxAtaBalInfoAfterSwap = await connection.getTokenAccountBalance(scDrvxAta)
+      console.log("Smart Contract DrvxAta token balance is :", scDrvxAtaBalInfoAfterSwap.value.uiAmount, '\n')
+
+      const userDrvxAtaAfterSwap = await getAssociatedTokenAddress(drvxMint, globalState, true)
+      console.log("Smart Contract DrvxAta:", userDrvxAtaAfterSwap.toBase58(), '\n')
+      const userDrvxAtaBalInfoAfterSwap = await connection.getTokenAccountBalance(userDrvxAta)
+      console.log("Smart Contract DrvxAta token balance is :", userDrvxAtaBalInfoAfterSwap.value.uiAmount, '\n')
+
+
+      const userUsdtAtaAfterSwap = await getAssociatedTokenAddress(usdtMint, globalState, true)
+      console.log("Smart Contract DrvxAta:", userUsdtAtaAfterSwap.toBase58(), '\n')
+      const userUsdtAtaBalInfoAfterSwap = await connection.getTokenAccountBalance(userUsdtAta)
+      console.log("Smart Contract DrvxAta token balance is :", userUsdtAtaBalInfoAfterSwap.value.uiAmount, '\n')
+
+
+      const feeWalletAtaAfterSwap = getAssociatedTokenAddressSync(usdtMint, feeWallet.publicKey)
+      console.log("FeeWalletAta address:", feeWalletAtaAfterSwap.toBase58())
+      const feeAtaInfoAfterSwap = await connection.getAccountInfo(feeWalletAta)
+      if (feeAtaInfoAfterSwap) {
+        const feeBalance = await connection.getTokenAccountBalance(feeWalletAta)
+        console.log("Fee Balance:", feeBalance.value.uiAmount)
+      } else {
+        console.log("Fee wallet ata still not created")
+      }
+    } catch (error) {
+      console.log("error in withdraw drvx Token :", error)
+    }
+  })
+
 });
