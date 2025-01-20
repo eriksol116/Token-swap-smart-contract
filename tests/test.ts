@@ -18,16 +18,20 @@ describe("drvx", () => {
   const provider = anchor.AnchorProvider.env()
   anchor.setProvider(provider);
 
-  const connection = new Connection("https://devnet.helius-rpc.com/?api-key=36fe5fc9-8598-4302-a28f-a93d9cc441b7", { commitment: 'confirmed' });
+  // const connection = new Connection("https://devnet.helius-rpc.com/?api-key=36fe5fc9-8598-4302-a28f-a93d9cc441b7", { commitment: 'confirmed' });
+  const connection = new Connection("http://localhost:8899", { commitment: 'confirmed' });
   const admin = Keypair.fromSecretKey(new Uint8Array(adminArr))
   const feeWallet = Keypair.fromSecretKey(new Uint8Array(feeWalletArr))
   const user1 = Keypair.fromSecretKey(bs58.decode(key1.key));
   const program = anchor.workspace.Drvx as Program<Drvx>;
 
-  let usdtMint: PublicKey;
-  let drvxMint: PublicKey;
-  let userUsdtTokenAta: PublicKey;
-  let userDrvxTokenAta: PublicKey;
+
+  let usdtMint: PublicKey = new PublicKey("WUZaKnih6xjdvfrBsxzME7SPs8ja33UxUCxtsNyJiAa")
+  let drvxMint: PublicKey = new PublicKey("MfkjE6B3wF6u65uFBsZdt9t2rE2Bn96peNjjFcLRFvX")
+  let userUsdtTokenAta: PublicKey
+  let userDrvxTokenAta: PublicKey
+  // let userUsdtTokenAta: PublicKey = (await getOrCreateAssociatedTokenAccount(connection, admin, usdtMint, admin.publicKey)).address
+  // let userDrvxTokenAta: PublicKey = (await getOrCreateAssociatedTokenAccount(connection, admin, drvxMint, admin.publicKey)).address
   let globalState: PublicKey;
   let scUsdtAta: PublicKey;
   let scDrvxAta: PublicKey;
@@ -40,51 +44,52 @@ describe("drvx", () => {
 
   console.log("Admin's wallet address is : ", admin.publicKey.toBase58(), '\n');
 
-  it(" Admin wallet's state", async () => { 
-    console.log("Admin's wallet balance : ", ((await connection.getBalance(adminWallet)) / 10 ** 9).toFixed(3), "SOL"), '\n' }
+  it(" Admin wallet's state", async () => {
+    console.log("Admin's wallet balance : ", ((await connection.getBalance(adminWallet)) / 10 ** 9).toFixed(3), "SOL"), '\n'
+  }
   );
 
 
-  // it("Airdrop to admin wallet", async () => {
-  //   console.log("\n\n")
-  //   console.log("==============================  Trying to Airdrop to admin wallet  ==============================", '\n')
-  //   console.log(`Requesting airdrop to admin for 1SOL : ${admin.publicKey}`, '\n')
-  //   // 1 - Request Airdrop
-  //   const signature = await connection.requestAirdrop(
-  //     admin.publicKey,
-  //     10 ** 9
-  //   );
-  //   // 2 - Fetch the latest blockhash
-  //   const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
-  //   // 3 - Confirm transaction success
+  it("Airdrop to admin wallet", async () => {
+    console.log("\n\n")
+    console.log("==============================  Trying to Airdrop to admin wallet  ==============================", '\n')
+    console.log(`Requesting airdrop to admin for 1SOL : ${admin.publicKey}`, '\n')
+    // 1 - Request Airdrop
+    const signature = await connection.requestAirdrop(
+      admin.publicKey,
+      10 ** 9
+    );
+    // 2 - Fetch the latest blockhash
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+    // 3 - Confirm transaction success
 
-  //   await connection.confirmTransaction({
-  //     blockhash,
-  //     lastValidBlockHeight,
-  //     signature
-  //   }, 'confirmed');
-  //   console.log("Admin's wallet balance : ", (await connection.getBalance(admin.publicKey)) / 10 ** 9, "SOL", '\n')
-  // })
+    await connection.confirmTransaction({
+      blockhash,
+      lastValidBlockHeight,
+      signature
+    }, 'confirmed');
+    console.log("Admin's wallet balance : ", (await connection.getBalance(admin.publicKey)) / 10 ** 9, "SOL", '\n')
+  })
 
-  // it("Airdrop to user1 wallet", async () => {
-  //   console.log("\n\n")
-  //   console.log("==============================  Trying to Airdrop to user1 wallet  ==============================", '\n')
-  //   console.log(`Requesting airdrop to user1 for 1SOL : ${admin.publicKey}`, '\n')
-  //   // 1 - Request Airdrop
-  //   const signature = await connection.requestAirdrop(
-  //     user1.publicKey,
-  //     10 ** 9
-  //   );
-  //   // 2 - Fetch the latest blockhash
-  //   const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
-  //   // 3 - Confirm transaction success
-  //   await connection.confirmTransaction({
-  //     blockhash,
-  //     lastValidBlockHeight,
-  //     signature
-  //   }, 'confirmed');
-  //   console.log("user1 wallet balance : ", (await connection.getBalance(user1.publicKey)) / 10 ** 9, "SOL", '\n')
-  // })
+  it("Airdrop to user1 wallet", async () => {
+    console.log("\n\n")
+    console.log("==============================  Trying to Airdrop to user1 wallet  ==============================", '\n')
+    console.log(`Requesting airdrop to user1 for 1SOL : ${admin.publicKey}`, '\n')
+    // 1 - Request Airdrop
+    const signature = await connection.requestAirdrop(
+      user1.publicKey,
+      10 ** 9
+    );
+    // 2 - Fetch the latest blockhash
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+    // 3 - Confirm transaction success
+    await connection.confirmTransaction({
+      blockhash,
+      lastValidBlockHeight,
+      signature
+    }, 'confirmed');
+    console.log("user1 wallet balance : ", (await connection.getBalance(user1.publicKey)) / 10 ** 9, "SOL", '\n')
+  })
 
   it("Mint usdt token to admin wallet", async () => {
     console.log("\n\n")
@@ -137,6 +142,9 @@ describe("drvx", () => {
 
 
   it("Is initialized!", async () => {
+    let userUsdtTokenAta: PublicKey = (await getOrCreateAssociatedTokenAccount(connection, admin, usdtMint, admin.publicKey)).address
+    let userDrvxTokenAta: PublicKey = (await getOrCreateAssociatedTokenAccount(connection, admin, drvxMint, admin.publicKey)).address
+
     console.log("\n\n")
     console.log("==============================  Admin initializes the smart contract  ==============================  ", '\n')
     try {
@@ -149,6 +157,7 @@ describe("drvx", () => {
       scUsdtAta = getAssociatedTokenAddressSync(usdtMint, fetchedGlobalState, true)
 
       console.log("globalState:", globalState.toBase58())
+      console.log("🚀 ~ it ~ feeWallet:", feeWallet.publicKey.toBase58())
 
       const tx = new Transaction().add(
         await program.methods.initialize()
@@ -440,9 +449,8 @@ describe("drvx", () => {
           admin.publicKey, feeWalletAta, feeWallet.publicKey, usdtMint
         ),
         await program.methods
-          .swapUsdtToDrvx(new BN(1_000_000))
+          .swapUsdtToDrvx(new BN(1_000_000).mul(new BN(10 ** 6)))
           .accounts({
-            admin: admin.publicKey,
             drvxMint,
             usdtMint,
             feeWallet: feeWallet.publicKey,
@@ -542,7 +550,7 @@ describe("drvx", () => {
           admin.publicKey, feeWalletAta, feeWallet.publicKey, usdtMint
         ),
         await program.methods
-          .swapDrvxToUsdt(new BN(70_000))
+          .swapDrvxToUsdt(new BN(70_000).mul(new BN(10 ** 6)))
           .accounts({
 
             // admin: admin.publicKey,
@@ -551,7 +559,6 @@ describe("drvx", () => {
             // usdtMint,
             // user: admin.publicKey
 
-            admin: admin.publicKey,
             drvxMint: drvxMint,
             feeWallet: feeWallet.publicKey,
             usdtMint: usdtMint,

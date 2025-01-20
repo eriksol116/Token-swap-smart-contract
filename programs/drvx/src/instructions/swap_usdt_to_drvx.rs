@@ -31,12 +31,6 @@ pub struct SwapUsdtToDrvx<'info> {
     )]
     pub drvx_vault: Account<'info, TokenAccount>, // Pool's token account
 
-    #[account(
-        mut,
-        constraint = admin.key() == global_state.admin.key()
-    )]
-    pub admin: Signer<'info>,
-
     #[account(mut)]
     /// CHECK: fee wallet is safe since it is extra wallet
     pub fee_wallet: UncheckedAccount<'info>,
@@ -83,6 +77,8 @@ pub struct SwapUsdtToDrvx<'info> {
 pub fn swap_usdt_to_drvx(ctx: Context<SwapUsdtToDrvx>, amount: u64) -> Result<()> {
     let global_state = &mut ctx.accounts.global_state;
     let seeds: &[&[&[u8]]] = &[&[GLOBAL_SEED.as_bytes(), &[ctx.bumps.global_state]]];
+    let usdt_decimal = ctx.accounts.usdt_mint.decimals;
+    let drvx_decimal = ctx.accounts.drvx_mint.decimals;
 
     let user_usdt_token_account = &ctx.accounts.user_usdt_token_account;
 
@@ -90,6 +86,10 @@ pub fn swap_usdt_to_drvx(ctx: Context<SwapUsdtToDrvx>, amount: u64) -> Result<()
         user_usdt_token_account.amount >= amount,
         CustomError::InsufficientFundsInUserUsdtTokenAccount
     );
+
+    let fee: u64 = (amount as f64 * global_state.swap_fee_rate as f64 / 10000f64) as u64;
+    let amount_out = ((amount - fee) as f64 / (10u32.pow(usdt_decimal as u32) as f64)
+        * (10u32.pow(drvx_decimal as u32) as f64)) as u64;
 
     require!(
         global_state.total_usdt_token_amount
@@ -125,10 +125,7 @@ pub fn swap_usdt_to_drvx(ctx: Context<SwapUsdtToDrvx>, amount: u64) -> Result<()
         },
         seeds,
     );
-    token::transfer(
-        cpi_context,
-        (amount as u64) * (global_state.swap_fee_rate as u64) / 10000,
-    )?;
+    token::transfer(cpi_context, fee)?;
 
     let cpi_program = ctx.accounts.token_program.to_account_info();
     let cpi_context = CpiContext::new_with_signer(
@@ -140,15 +137,10 @@ pub fn swap_usdt_to_drvx(ctx: Context<SwapUsdtToDrvx>, amount: u64) -> Result<()
         },
         seeds,
     );
-    token::transfer(
-        cpi_context,
-        amount * ((amount as u64) * (10000 - global_state.swap_fee_rate as u64)) / 10000,
-    )?;
+    token::transfer(cpi_context, amount_out)?;
 
-    global_state.total_usdt_token_amount +=
-        amount * ((amount as u64) * (10000 - global_state.swap_fee_rate as u64)) / 10000;
-    global_state.total_drvx_token_amount -=
-        amount * ((amount as u64) * (10000 - global_state.swap_fee_rate as u64)) / 10000;
+    global_state.total_usdt_token_amount += amount - fee;
+    global_state.total_drvx_token_amount -= amount_out;
     // Reduce the global_state's token balance after the transfer
 
     Ok(())

@@ -8,7 +8,7 @@ pub mod state;
 
 use crate::instructions::*;
 
-declare_id!("6rpxz6kFL4CDrbv49Fa61sAsQT72A5Hy9nHM9eqrBr8D");
+declare_id!("EPjbetVB9ANoNKJCnNFJXRkiSKs7gp7kVKVU2HFJNi4z");
 
 #[program]
 pub mod drvx {
