@@ -5,13 +5,13 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-drvx = "EPjbetVB9ANoNKJCnNFJXRkiSKs7gp7kVKVU2HFJNi4z"
+drvx = "FYC1X9f23fCHYx6eLrei9ErsJY6jkaojqptxYaCHWFdK"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
+cluster = "Localnet"
 wallet = "./id.json"
 
 [scripts]
